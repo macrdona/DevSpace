@@ -3,6 +3,11 @@ using MongoDB.Bson;
 using Microsoft.Extensions.Configuration;
 using backend.Helpers;
 using backend.Services;
+using System.Net.Mime;
+using backend.Authorization;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.AspNetCore.Mvc;
 
 namespace backend
 {
@@ -16,7 +21,18 @@ namespace backend
                 var services = builder.Services;
                 var environment = builder.Environment;
 
-                services.AddControllers();
+                //registering service for overriding API ModelState error response
+                services.AddControllers().ConfigureApiBehaviorOptions(options =>
+                {
+                    options.InvalidModelStateResponseFactory = context =>
+                    {
+                        var result = new ValidationFailedResult(context.ModelState);
+
+                        //responses are formatted to JSON
+                        result.ContentTypes.Add(MediaTypeNames.Application.Json);
+                        return result;
+                    };
+                });
 
                 //allow calls from external origins
                 services.AddCors();
@@ -27,11 +43,24 @@ namespace backend
                 var databaseSettings = builder.Configuration.GetSection("DatabaseSettings");
                 services.Configure<DatabaseSettings>(databaseSettings);
 
+                var appSettings = builder.Configuration.GetSection("AppSettings");
+                services.Configure<AppSettings>(appSettings);
+
                 //instance are the same within a request, but different accross different requests
                 services.AddScoped<IAccountServices, AccountsServices>();
+                services.AddScoped<IJwtUtils, JwtUtils>();
 
                 //allows mapping data from one object to another
                 services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+
+                //allowing use of HTTPContext in other classes
+                services.AddScoped<IUrlHelper>(factory =>
+                {
+                    var actionContext = factory.GetService<IActionContextAccessor>()
+                                               .ActionContext;
+                    return new UrlHelper(actionContext);
+                });
+                services.AddHttpContextAccessor();
             }
             
 
@@ -46,6 +75,11 @@ namespace backend
 
                 //custome application error handling
                 app.UseMiddleware<ErrorHandlerMiddleware>();
+
+                //custorm jwt authorization handler
+                app.UseMiddleware<JwtMiddleware>();
+
+                app.UseAuthorization();
 
                 app.MapControllers();
             }

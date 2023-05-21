@@ -8,6 +8,7 @@ namespace backend.Helpers
         public AutoMapper()
         {
             CreateMap<RegistrationRequest, User>();
+            CreateMap<User, AuthenticateResponse>();
         }
     }
 }
