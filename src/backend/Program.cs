@@ -8,6 +8,8 @@ using backend.Authorization;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using backend.Database;
 
 namespace backend
 {
@@ -37,11 +39,14 @@ namespace backend
                 //allow calls from external origins
                 services.AddCors();
 
-                /*This section binds the `DatabaseSettings` object to the data stored in appsettings.json, 
+                /*This section binds the `DatabaseSettings` data model to the data stored in secrets.json, 
                  * and registers the configuration in the Dependancy Injection container
                  */
                 var databaseSettings = builder.Configuration.GetSection("DatabaseSettings");
                 services.Configure<DatabaseSettings>(databaseSettings);
+
+                //registering MongoClient and adding it to DI container
+                services.AddSingleton<IMongoClient, MongoClient>(conn => new MongoClient(builder.Configuration.GetSection("DatabaseConnection:ConnectionString").Value));
 
                 var appSettings = builder.Configuration.GetSection("AppSettings");
                 services.Configure<AppSettings>(appSettings);

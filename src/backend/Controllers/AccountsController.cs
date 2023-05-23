@@ -13,12 +13,14 @@ namespace backend.Controllers
     public class AccountsController : Controller
     {
         private readonly IAccountServices _accountServices;
-        private readonly User _userContext;
+        private readonly IHttpContextAccessor _contextAccessor;
+        private readonly User _userInContext;
 
         public AccountsController(IAccountServices accountServices, IHttpContextAccessor context)
         {
             _accountServices = accountServices;
-            _userContext = (User)context.HttpContext.Items["User"];
+            _contextAccessor = context;
+            _userInContext = (User)_contextAccessor.HttpContext.Items["User"];            
         }
 
         [AllowAnonymous]

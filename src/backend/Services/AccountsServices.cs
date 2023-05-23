@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using AutoMapper;
 using BCrypt.Net;
 using backend.Authorization;
+using backend.Database;
 
 namespace backend.Services
 {
@@ -14,15 +15,15 @@ namespace backend.Services
         public Task<AuthenticateResponse> Login(LoginRequest request);
         public Task<User> GetUser(int id);
     }
+
     public class AccountsServices : IAccountServices
     {
         private readonly IMongoCollection<User> _userContext;
         private readonly IMapper _mapper;
         private readonly IJwtUtils _jwtUtils;
 
-        public AccountsServices(IOptions<DatabaseSettings> databaseSettings, IMapper mapper, IJwtUtils jwtUtils)
+        public AccountsServices(IOptions<DatabaseSettings> databaseSettings, IMapper mapper, IJwtUtils jwtUtils, IMongoClient mongoClient)
         {
-            var mongoClient = new MongoClient(databaseSettings.Value.ConnectionString);
             var mongoDatabase = mongoClient.GetDatabase(databaseSettings.Value.Database);
             _userContext = mongoDatabase.GetCollection<User>("Accounts");
             _mapper = mapper;
@@ -33,7 +34,8 @@ namespace backend.Services
         {
             try
             {
-                var user = await _userContext.Find(x => x.Username == request.Username).FirstOrDefaultAsync();
+                var query = _userContext.Find(x => x.Username == request.Username);
+                var user = await query.FirstOrDefaultAsync();
                 
                 if (user != null) throw new AppException("Username '" + request.Username + "' is already taken");
 

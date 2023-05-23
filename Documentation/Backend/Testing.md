@@ -26,3 +26,19 @@
 - Unit tests use fabricated components, known as fakes or mock objects, in place of infrasture components
 
 - More about Unit Tests: https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-with-dotnet-test
+
+# Testing Patterns
+
+## Arrange-Act-Assert
+
+### Arrange
+
+- Refers to arrange inputs and targets. Arrange steps should set up the test case, those being setting up objects or special settings.
+
+### Act
+
+- Refers to act in the target behavior. This should cover the main feature being tested, such as calling a function or API.
+
+### Assert
+
+- Refers to assert expected outcomes. Verify whether the results are what we expected them to be.
