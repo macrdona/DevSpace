@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.Linq.Expressions;
 using MongoDB.Driver;
 
-namespace backend.Tests.Helpers
+namespace backend.Helpers.Wrappers
 {
     public interface IFindFluentWrapper<TDocument>
     {
@@ -21,9 +21,9 @@ namespace backend.Tests.Helpers
             _findFluent = findFluent;
         }
 
-        public Task<TDocument> FirstOrDefaultAsync()
+        public async Task<TDocument> FirstOrDefaultAsync()
         {
-            return _findFluent.FirstOrDefaultAsync();
+            return await _findFluent.FirstOrDefaultAsync();
         }
     }
 }

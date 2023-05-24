@@ -10,7 +10,8 @@ using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using backend.Database;
-
+using backend.Helpers.Wrappers;
+using backend.Models;
 namespace backend
 {
     public class Program
@@ -45,8 +46,14 @@ namespace backend
                 var databaseSettings = builder.Configuration.GetSection("DatabaseSettings");
                 services.Configure<DatabaseSettings>(databaseSettings);
 
-                //registering MongoClient and adding it to DI container
-                services.AddSingleton<IMongoClient, MongoClient>(conn => new MongoClient(builder.Configuration.GetSection("DatabaseConnection:ConnectionString").Value));
+                //registering MongoDB Collection and adding it to DI container
+                services.AddSingleton<IMongoCollectionWrapper<User>, MongoCollectionWrapper<User>>(conn =>
+                {
+                    var client = new MongoClient(builder.Configuration.GetSection("DatabaseConnection:ConnectionString").Value);
+                    var database = client.GetDatabase(builder.Configuration.GetSection("DatabaseSettings:Database").Value);
+                    var collection = database.GetCollection<User>("Accounts");
+                    return new MongoCollectionWrapper<User>(collection);  
+                });
 
                 var appSettings = builder.Configuration.GetSection("AppSettings");
                 services.Configure<AppSettings>(appSettings);

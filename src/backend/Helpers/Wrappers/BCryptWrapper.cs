@@ -4,7 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using BCrypt;
-namespace backend.Tests.Helpers
+
+namespace backend.Helpers.Wrappers
 {
     public interface IBCryptWrapper
     {

@@ -8,49 +8,38 @@ using backend.Tests.Data;
 using backend.Services;
 using FluentAssertions;
 using backend.Database;
-using backend.Tests.Helpers;
+using backend.Helpers.Wrappers;
+using backend.Helpers;
+using Moq;
+using System.Linq.Expressions;
 
 namespace backend.Tests.Services
 {
     public class AccountsServicesUnitTests
     {
-        private readonly IMongoCollection<User> _userContext;
+        private readonly IMongoCollectionWrapper<User> _userContext;
         private readonly IMapper _mapper;
         private readonly IJwtUtils _jwtUtils;
-        private readonly IOptions<DatabaseSettings> _databaseSettings;
-        private readonly IMongoClient _mongoClient;
         public AccountsServicesUnitTests()
         {
-            _databaseSettings = A.Fake<IOptions<DatabaseSettings>>();
             _mapper = A.Fake<IMapper>();
             _jwtUtils = A.Fake<IJwtUtils>();
-
-            _mongoClient = A.Fake<IMongoClient>();
-            
-            var mongoDatabase = A.Fake<IMongoDatabase>();
-            A.CallTo(() => _mongoClient.GetDatabase(_databaseSettings.Value.Database,null)).Returns(mongoDatabase);
-
-            _userContext = A.Fake<IMongoCollection<User>>();
-            A.CallTo(() => mongoDatabase.GetCollection<User>("Accounts",null)).Returns(_userContext);
+            _userContext = A.Fake<IMongoCollectionWrapper<User>>();
         }
 
-        [Fact]
-        public void AccountsServices_Register_ReturnAuthenticateResponse()
+        [Theory]
+        [MemberData(nameof(UserMockData.GetSampleRegistrationRequestModel), MemberType = typeof(UserMockData))]
+        public void AccountsServices_Register_ReturnAuthenticateResponse(RegistrationRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
         {
             //Arrange
-            var sampleUser = UserMockData.GetSampleUser();
-            var sampleAuthenticateResponse = UserMockData.GetSampleAuthenticateResponseModel();
-            var request = UserMockData.GetSampleRegistrationRequestModel();
-
-            var mongoCollectionWrapper = A.Fake<IMongoCollectionWrapper<User>>();
             var findFluentWrapper = A.Fake<IFindFluentWrapper<User>>();
             var bCryptWrapper = A.Fake<IBCryptWrapper>();
-            var service = new AccountsServices(_databaseSettings, _mapper, _jwtUtils, _mongoClient);
+            var service = new AccountsServices(_userContext, _mapper, _jwtUtils);
 
-            A.CallTo(() => mongoCollectionWrapper.Find(x => x.Username == request.Username, null)).Returns(findFluentWrapper);
-            A.CallTo(() => findFluentWrapper.FirstOrDefaultAsync()).Returns(sampleUser);
+            A.CallTo(() => _userContext.Find(x => x.Username == request.Username, null)).Returns(null);
+            A.CallTo(() => findFluentWrapper.FirstOrDefaultAsync()).Returns(Task.FromResult<User>(null));
             A.CallTo(() => _mapper.Map<User>(request)).Returns(sampleUser);
-            A.CallTo(() => mongoCollectionWrapper.CountDocumentsAsync(x => x.Username == sampleUser.Username,null,default)).Returns(sampleUser.UserId+1);
+            A.CallTo(() => _userContext.CountDocumentsAsync(x => x.Username == sampleUser.Username,null,default)).Returns(sampleUser.UserId+1);
             A.CallTo(() => bCryptWrapper.HashPassword(sampleUser.Password)).Returns(sampleUser.Password);
             A.CallTo(() => _userContext.InsertOneAsync(sampleUser,null,default)).Returns(Task.CompletedTask);
             A.CallTo(() => _mapper.Map<AuthenticateResponse>(sampleUser)).Returns(sampleAuthenticateResponse);
@@ -63,6 +52,24 @@ namespace backend.Tests.Services
             result.Should().NotBeNull();
             result.Should().BeOfType<AuthenticateResponse>();
             result.Should().BeSameAs(sampleAuthenticateResponse);
+        }
+
+        [Theory]
+        [MemberData(nameof(UserMockData.GetSampleRegistrationRequestModel), MemberType = typeof(UserMockData))]
+        public void AccountsServices_Register_ThrowsAppException(RegistrationRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
+        {
+            //Arrange
+            //var findFluentWrapper = A.Fake<IFindFluentWrapper<User>>();
+            var i = A.Fake<AccountsServices>();
+            var service = new AccountsServices(_userContext, _mapper, _jwtUtils);
+
+            A.CallTo(() => i.FindUser(x => x.Username == request.Username)).Returns(Task.FromResult(sampleUser));
+            //A.CallTo(() => findFluentWrapper.FirstOrDefaultAsync()).Returns(sampleUser);
+
+            //Act
+            //Assert
+
+            Assert.ThrowsAsync<AppException>(() => service.Register(request));
         }
     }
 }
