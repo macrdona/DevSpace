@@ -10,7 +10,7 @@ namespace backend.Helpers.Wrappers
 {
     public interface IMongoCollectionWrapper<TDocument>
     {
-        IFindFluentWrapper<TDocument> Find(Expression<Func<TDocument, bool>> filter, FindOptions<TDocument, TDocument> options = null);
+        Task<TDocument> Find(Expression<Func<TDocument, bool>> filter, FindOptions<TDocument, TDocument> options = null);
         Task<long> CountDocumentsAsync(Expression<Func<TDocument, bool>> filter, CountOptions options = null, CancellationToken cancellationToken = default(CancellationToken));
         Task InsertOneAsync(TDocument document, InsertOneOptions options = null, CancellationToken cancellationToken = default(CancellationToken));
 
@@ -25,15 +25,15 @@ namespace backend.Helpers.Wrappers
             _mongoCollection = mongoCollection;
         }
 
-        public IFindFluentWrapper<TDocument> Find(Expression<Func<TDocument, bool>> filter, FindOptions<TDocument, TDocument> options = null)
+        public async Task<TDocument> Find(Expression<Func<TDocument, bool>> filter, FindOptions<TDocument, TDocument> options = null)
         {
-            var findFluent = _mongoCollection.Find(filter);
-            return new FindFluentWrapper<TDocument>(findFluent);
+            return await _mongoCollection.Find(filter).FirstOrDefaultAsync();
+            
         }
 
-        public Task<long> CountDocumentsAsync(Expression<Func<TDocument, bool>> filter, CountOptions options = null, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<long> CountDocumentsAsync(Expression<Func<TDocument, bool>> filter, CountOptions options = null, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var count = _mongoCollection.CountDocumentsAsync(filter, options);
+            var count = await _mongoCollection.CountDocumentsAsync(filter, options);
             return count;
         }
 

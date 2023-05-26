@@ -1,75 +1,74 @@
 ﻿using AutoMapper;
 using backend.Authorization;
 using backend.Models;
-using MongoDB.Driver;
 using FakeItEasy;
-using Microsoft.Extensions.Options;
 using backend.Tests.Data;
 using backend.Services;
 using FluentAssertions;
-using backend.Database;
 using backend.Helpers.Wrappers;
 using backend.Helpers;
 using Moq;
 using System.Linq.Expressions;
 
+
 namespace backend.Tests.Services
 {
     public class AccountsServicesUnitTests
     {
-        private readonly IMongoCollectionWrapper<User> _userContext;
+        private readonly Mock<IMongoCollectionWrapper<User>> _userContext;
         private readonly IMapper _mapper;
-        private readonly IJwtUtils _jwtUtils;
+        private readonly Mock<IJwtUtils> _jwtUtils;
+        private readonly Mock<IBCryptWrapper> _bCryptWrapper;
+        private readonly Mock<IMongoDatabaseWrapper> _mongoDatabase;
         public AccountsServicesUnitTests()
         {
-            _mapper = A.Fake<IMapper>();
-            _jwtUtils = A.Fake<IJwtUtils>();
-            _userContext = A.Fake<IMongoCollectionWrapper<User>>();
+            //configure mapper for unit testing
+           var profile = new Helpers.AutoMapper();
+           var configuration = new MapperConfiguration(cfg => cfg.AddProfile(profile));
+            _mapper = new Mapper(configuration);
+
+            _jwtUtils = new Mock<IJwtUtils>();
+            _userContext = new Mock<IMongoCollectionWrapper<User>>();
+            _bCryptWrapper = new Mock<IBCryptWrapper>();
+            _mongoDatabase = new Mock<IMongoDatabaseWrapper>();
         }
 
         [Theory]
         [MemberData(nameof(UserMockData.GetSampleRegistrationRequestModel), MemberType = typeof(UserMockData))]
-        public void AccountsServices_Register_ReturnAuthenticateResponse(RegistrationRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
+        public async Task AccountsServices_Register_ReturnAuthenticateResponse(RegistrationRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
         {
             //Arrange
-            var findFluentWrapper = A.Fake<IFindFluentWrapper<User>>();
-            var bCryptWrapper = A.Fake<IBCryptWrapper>();
-            var service = new AccountsServices(_userContext, _mapper, _jwtUtils);
+            User nullUser = null;
 
-            A.CallTo(() => _userContext.Find(x => x.Username == request.Username, null)).Returns(null);
-            A.CallTo(() => findFluentWrapper.FirstOrDefaultAsync()).Returns(Task.FromResult<User>(null));
-            A.CallTo(() => _mapper.Map<User>(request)).Returns(sampleUser);
-            A.CallTo(() => _userContext.CountDocumentsAsync(x => x.Username == sampleUser.Username,null,default)).Returns(sampleUser.UserId+1);
-            A.CallTo(() => bCryptWrapper.HashPassword(sampleUser.Password)).Returns(sampleUser.Password);
-            A.CallTo(() => _userContext.InsertOneAsync(sampleUser,null,default)).Returns(Task.CompletedTask);
-            A.CallTo(() => _mapper.Map<AuthenticateResponse>(sampleUser)).Returns(sampleAuthenticateResponse);
-            A.CallTo(() => _jwtUtils.GenerateToken(sampleUser)).Returns(sampleAuthenticateResponse.Token);
+            _mongoDatabase.Setup(mock => mock.GetCollection<User>(It.IsAny<string>(), null)).Returns(_userContext.Object);
+            _userContext.Setup(mock => mock.Find(It.IsAny<Expression<Func<User, bool>>>(), null)).ReturnsAsync(nullUser);
+            _userContext.Setup(mock => mock.CountDocumentsAsync(It.IsAny<Expression<Func<User, bool>>>(), null, default)).ReturnsAsync(sampleUser.UserId-1);
+            _bCryptWrapper.Setup(mock => mock.HashPassword(It.IsAny<string>())).Returns(sampleUser.Password);
+            _userContext.Setup(mock => mock.InsertOneAsync(It.IsAny<User>(), null, default)).Returns(Task.CompletedTask);
+            _jwtUtils.Setup(mock => mock.GenerateToken(It.IsAny<User>())).Returns(sampleAuthenticateResponse.Token);
+
+            var service = new AccountsServices(_mongoDatabase.Object, _mapper, _jwtUtils.Object, _bCryptWrapper.Object);
 
             //Act
-            var result = service.Register(request).Result;
+            var response = await service.Register(request);
 
             //Assert
-            result.Should().NotBeNull();
-            result.Should().BeOfType<AuthenticateResponse>();
-            result.Should().BeSameAs(sampleAuthenticateResponse);
+            Assert.NotNull(response);
+            Assert.Equal(response.Token,sampleAuthenticateResponse.Token);
         }
 
         [Theory]
         [MemberData(nameof(UserMockData.GetSampleRegistrationRequestModel), MemberType = typeof(UserMockData))]
-        public void AccountsServices_Register_ThrowsAppException(RegistrationRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
+        public async Task AccountsServices_Register_ThrowsAppException(RegistrationRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
         {
             //Arrange
-            //var findFluentWrapper = A.Fake<IFindFluentWrapper<User>>();
-            var i = A.Fake<AccountsServices>();
-            var service = new AccountsServices(_userContext, _mapper, _jwtUtils);
-
-            A.CallTo(() => i.FindUser(x => x.Username == request.Username)).Returns(Task.FromResult(sampleUser));
-            //A.CallTo(() => findFluentWrapper.FirstOrDefaultAsync()).Returns(sampleUser);
+            _mongoDatabase.Setup(mock => mock.GetCollection<User>(It.IsAny<string>(),null)).Returns(_userContext.Object);
+            _userContext.Setup(mock => mock.Find(It.IsAny<Expression<Func<User,bool>>>(),null)).ReturnsAsync(sampleUser);
+            var service = new AccountsServices(_mongoDatabase.Object, _mapper, _jwtUtils.Object, _bCryptWrapper.Object);
 
             //Act
             //Assert
-
-            Assert.ThrowsAsync<AppException>(() => service.Register(request));
+            await Assert.ThrowsAnyAsync<AppException>(async () => await service.Register(request));
         }
     }
 }

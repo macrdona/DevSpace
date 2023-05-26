@@ -6,7 +6,6 @@ using Microsoft.Extensions.Options;
 using AutoMapper;
 using BCrypt.Net;
 using backend.Authorization;
-using backend.Database;
 using System.Linq.Expressions;
 using Amazon.Runtime.Internal;
 
@@ -17,40 +16,44 @@ namespace backend.Services
         public Task<AuthenticateResponse> Register(RegistrationRequest request);
         public Task<AuthenticateResponse> Login(LoginRequest request);
         public Task<User> GetUser(int id);
-        public Task<User> FindUser(Expression<Func<User, bool>> predicate);
     }
 
     public class AccountsServices : IAccountServices
     {
-        private readonly IMongoCollectionWrapper<User> _userContext;
         private readonly IMapper _mapper;
         private readonly IJwtUtils _jwtUtils;
+        private readonly IMongoCollectionWrapper<User> _userContext;
+        private readonly IBCryptWrapper _bCryptWrapper;
 
-        public AccountsServices(IMongoCollectionWrapper<User> _mongoCollection, IMapper mapper, IJwtUtils jwtUtils)
+        public AccountsServices(IMongoDatabaseWrapper mongoDatabase, IMapper mapper, IJwtUtils jwtUtils, IBCryptWrapper bCryptWrapper)
         {
             _mapper = mapper;
             _jwtUtils = jwtUtils;
-            _userContext = _mongoCollection;
+            _userContext = mongoDatabase.GetCollection<User>("Accounts");
+            _bCryptWrapper = bCryptWrapper;
         }
 
         public async Task<AuthenticateResponse> Register(RegistrationRequest request)
         {
             try
             {
-                var user = await FindUser(x => x.Username == request.Username);
-                
-                if (user != null) throw new AppException("Username '" + request.Username + "' is already taken");
+                var user =  await _userContext.Find(x => x.Username == request.Username);
+                AuthenticateResponse response;
 
-                //request -> user
-                user = _mapper.Map<User>(request);
+                if (user != null)
+                {
+                    throw new AppException("Username '" + request.Username + "' is already taken");
+                }
+                else
+                {
+                    user = _mapper.Map<User>(request);
+                    user.UserId = (int)await _userContext.CountDocumentsAsync(x => x.Username != request.Username) + 1;
+                    user.Password = _bCryptWrapper.HashPassword(user.Password);
+                    await _userContext.InsertOneAsync(user);
 
-                user.UserId = (int)await _userContext.CountDocumentsAsync(x => x.Username != request.Username) + 1;
-
-                user.Password = BCrypt.Net.BCrypt.HashPassword(user.Password);
-                await _userContext.InsertOneAsync(user);
-
-                var response = _mapper.Map<AuthenticateResponse>(user);
-                response.Token = _jwtUtils.GenerateToken(user);
+                    response = _mapper.Map<AuthenticateResponse>(user);
+                    response.Token = _jwtUtils.GenerateToken(user);
+                }
 
                 return response;
             }
@@ -65,9 +68,9 @@ namespace backend.Services
         {
             try
             {
-                var user = await FindUser(x => x.Username == request.Username);
+                var user = await _userContext.Find(x => x.Username == request.Username);
 
-                if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.Password))
+                if (user == null || !_bCryptWrapper.Verify(request.Password, user.Password))
                 {
                     throw new AppException("Username or Password is incorrect");
                 }
@@ -87,7 +90,7 @@ namespace backend.Services
         {
             try
             {
-                var user = await FindUser(x => x.UserId == id);
+                var user = await _userContext.Find(x => x.UserId == id);
 
                 if (user == null) throw new AppException("User not found");
 
@@ -98,12 +101,5 @@ namespace backend.Services
                 throw new AppException(ex.Message);
             }
         }
-
-        public virtual async Task<User> FindUser(Expression<Func<User, bool>> predicate)
-        {
-            var query = _userContext.Find(predicate);
-            return await query.FirstOrDefaultAsync();
-        }
-
     }
 }

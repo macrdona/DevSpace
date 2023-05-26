@@ -9,9 +9,10 @@ using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-using backend.Database;
 using backend.Helpers.Wrappers;
 using backend.Models;
+using AutoMapper;
+
 namespace backend
 {
     public class Program
@@ -40,27 +41,21 @@ namespace backend
                 //allow calls from external origins
                 services.AddCors();
 
-                /*This section binds the `DatabaseSettings` data model to the data stored in secrets.json, 
-                 * and registers the configuration in the Dependancy Injection container
-                 */
-                var databaseSettings = builder.Configuration.GetSection("DatabaseSettings");
-                services.Configure<DatabaseSettings>(databaseSettings);
+                var appSettings = builder.Configuration.GetSection("AppSettings");
+                services.Configure<AppSettings>(appSettings);
 
-                //registering MongoDB Collection and adding it to DI container
-                services.AddSingleton<IMongoCollectionWrapper<User>, MongoCollectionWrapper<User>>(conn =>
+                //registering MongoDB Database and adding it to DI container
+                services.AddSingleton<IMongoDatabaseWrapper, MongoDatabaseWrapper>(conn =>
                 {
                     var client = new MongoClient(builder.Configuration.GetSection("DatabaseConnection:ConnectionString").Value);
                     var database = client.GetDatabase(builder.Configuration.GetSection("DatabaseSettings:Database").Value);
-                    var collection = database.GetCollection<User>("Accounts");
-                    return new MongoCollectionWrapper<User>(collection);  
+                    return new MongoDatabaseWrapper(database);  
                 });
-
-                var appSettings = builder.Configuration.GetSection("AppSettings");
-                services.Configure<AppSettings>(appSettings);
 
                 //instance are the same within a request, but different accross different requests
                 services.AddScoped<IAccountServices, AccountsServices>();
                 services.AddScoped<IJwtUtils, JwtUtils>();
+                services.AddScoped<IBCryptWrapper, BCryptWrapper>();
 
                 //allows mapping data from one object to another
                 services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());

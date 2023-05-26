@@ -4,12 +4,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using BCrypt;
+using BCrypt.Net;
 
 namespace backend.Helpers.Wrappers
 {
     public interface IBCryptWrapper
     {
         string HashPassword(string inputKey);
+        bool Verify(string text, string hash, bool enhancedEntropy = false, HashType hashType = HashType.SHA384);
     }
 
     public class BCryptWrapper : IBCryptWrapper
@@ -19,6 +21,12 @@ namespace backend.Helpers.Wrappers
         {
             var hash = BCrypt.Net.BCrypt.HashPassword(inputKey);
             return hash;
+        }
+
+        public bool Verify(string text, string hash, bool enhancedEntropy = false, HashType hashType = HashType.SHA384)
+        {
+            var isValid = BCrypt.Net.BCrypt.Verify(text, hash);
+            return isValid;
         }
     }
 }
