@@ -25,7 +25,7 @@ namespace backend.Authorization
                 try
                 {
                     // attach user to context on successful jwt validation
-                    context.Items["User"] = accountServices.GetUser(userId.Value);
+                    context.Items["User"] = await accountServices.GetUser(userId.Value);
                 }
                 catch (Exception ex)
                 {

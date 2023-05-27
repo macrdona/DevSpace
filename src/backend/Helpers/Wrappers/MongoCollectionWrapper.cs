@@ -5,15 +5,17 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
+using backend.Models; 
 
 namespace backend.Helpers.Wrappers
 {
     public interface IMongoCollectionWrapper<TDocument>
     {
-        Task<TDocument> Find(Expression<Func<TDocument, bool>> filter, FindOptions<TDocument, TDocument> options = null);
-        Task<long> CountDocumentsAsync(Expression<Func<TDocument, bool>> filter, CountOptions options = null, CancellationToken cancellationToken = default(CancellationToken));
-        Task InsertOneAsync(TDocument document, InsertOneOptions options = null, CancellationToken cancellationToken = default(CancellationToken));
-
+        Task<TDocument> Find(Expression<Func<TDocument, bool>> filter);
+        Task<long> CountDocumentsAsync(Expression<Func<TDocument, bool>> filter);
+        Task InsertOneAsync(TDocument document);
+        Task UpdateOneAsync(Expression<Func<TDocument, bool>> filter, UpdateDefinition<TDocument> update);
+        Task DeleteOneAsync(Expression<Func<TDocument, bool>> filter);
     }
 
     public class MongoCollectionWrapper<TDocument> : IMongoCollectionWrapper<TDocument>
@@ -25,21 +27,31 @@ namespace backend.Helpers.Wrappers
             _mongoCollection = mongoCollection;
         }
 
-        public async Task<TDocument> Find(Expression<Func<TDocument, bool>> filter, FindOptions<TDocument, TDocument> options = null)
+        public async Task<TDocument> Find(Expression<Func<TDocument, bool>> filter)
         {
             return await _mongoCollection.Find(filter).FirstOrDefaultAsync();
             
         }
 
-        public async Task<long> CountDocumentsAsync(Expression<Func<TDocument, bool>> filter, CountOptions options = null, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<long> CountDocumentsAsync(Expression<Func<TDocument, bool>> filter)
         {
-            var count = await _mongoCollection.CountDocumentsAsync(filter, options);
+            var count = await _mongoCollection.CountDocumentsAsync(filter);
             return count;
         }
 
-        public async Task InsertOneAsync(TDocument document, InsertOneOptions options = null, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task InsertOneAsync(TDocument document)
         {
             await _mongoCollection.InsertOneAsync(document);
+        }
+
+        public async Task UpdateOneAsync(Expression<Func<TDocument, bool>> filter, UpdateDefinition<TDocument> update)
+        {
+            await _mongoCollection.UpdateOneAsync(filter,update);
+        }
+
+        public async Task DeleteOneAsync(Expression<Func<TDocument, bool>> filter)
+        {
+            await _mongoCollection.DeleteOneAsync(filter);
         }
     }
 }

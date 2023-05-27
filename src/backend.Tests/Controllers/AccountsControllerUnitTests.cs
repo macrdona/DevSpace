@@ -2,7 +2,7 @@ using backend.Models;
 using backend.Services;
 using Xunit;
 using FluentAssertions;
-using FakeItEasy;
+using Moq;
 using Microsoft.AspNetCore.Http;
 using backend.Controllers;
 using Microsoft.AspNetCore.Mvc;
@@ -12,56 +12,52 @@ namespace backend.Tests.Controllers
 {
     public class AccountsControllerUnitTests
     {
-        private readonly IAccountServices _accountServices;
-        private readonly IHttpContextAccessor _contextAccessor;
+        private readonly Mock<IAccountServices> _accountServices;
+        private readonly Mock<IHttpContextAccessor> _contextAccessor;
 
         public AccountsControllerUnitTests()
         {
-            _accountServices = A.Fake<IAccountServices>();
-            _contextAccessor = A.Fake<IHttpContextAccessor>();
+            _accountServices = new Mock<IAccountServices>();
+            _contextAccessor = new Mock<IHttpContextAccessor>();
         }
 
         [Theory]
-        [MemberData(nameof(UserMockData.GetSampleRegistrationRequestModel), MemberType = typeof(UserMockData))]
-        public void AccountsController_Register_ReturnOk(RegistrationRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
+        [MemberData(nameof(AccountsMockData.GetSampleRegistrationRequestModel), MemberType = typeof(AccountsMockData))]
+        public async Task AccountsController_Register_ReturnOk(RegistrationRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
         {
             //Arrange
 
             /*bypassing call (using a mock) and return a sample data*/
-            A.CallTo(() => _contextAccessor.HttpContext.Items["User"]).Returns(sampleUser);
-
-            var controller = new AccountsController(_accountServices, _contextAccessor);
-            A.CallTo(() => _accountServices.Register(request)).Returns(sampleAuthenticateResponse);
+            _contextAccessor.Setup(mock => mock.HttpContext.Items["User"]).Returns(sampleUser);
+            _accountServices.Setup(mock => mock.Register(request)).ReturnsAsync(sampleAuthenticateResponse);
+            var controller = new AccountsController(_accountServices.Object, _contextAccessor.Object);
+            
 
             //Act 
-            var result = controller.Registration(request).Result;
+            var result = await controller.Registration(request);
 
             //Assert
-            result.Should().NotBeNull();
-            result.Should().BeOfType(typeof(OkObjectResult));
+            Assert.NotNull(result);
+            Assert.IsType<OkObjectResult>(result);
         }
 
         [Theory]
-        [MemberData(nameof(UserMockData.GetSampleLoginRequestModel), MemberType = typeof(UserMockData))]
-        public void AccountsController_Login_ReturnsOk(LoginRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
+        [MemberData(nameof(AccountsMockData.GetSampleLoginRequestModel), MemberType = typeof(AccountsMockData))]
+        public async Task AccountsController_Login_ReturnsOk(LoginRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
         {
             //Arrange
 
             /*bypassing call (using a mock) and return a sample data*/
-            A.CallTo(() => _contextAccessor.HttpContext.Items["User"]).Returns(sampleUser);
-
-            /*Creating fake objects and fake data samples*/
-            var controller = new AccountsController(_accountServices, _contextAccessor);
-
-            /*bypassing call (using a mock) and return a sample data*/
-            A.CallTo(() => _accountServices.Login(request)).Returns(sampleAuthenticateResponse);
+            _contextAccessor.Setup(mock => mock.HttpContext.Items["User"]).Returns(sampleUser);
+            _accountServices.Setup(mock => mock.Login(request)).ReturnsAsync(sampleAuthenticateResponse);
+            var controller = new AccountsController(_accountServices.Object, _contextAccessor.Object);
 
             //Act
-            var result = controller.Login(request).Result;
+            var result = await controller.Login(request);
 
             //Assert
-            result.Should().NotBeNull();
-            result.Should().BeOfType(typeof(OkObjectResult));
+            Assert.NotNull(result);
+            Assert.IsType<OkObjectResult>(result);
         }
     }
 }

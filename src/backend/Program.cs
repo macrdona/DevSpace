@@ -12,6 +12,11 @@ using Microsoft.Extensions.DependencyInjection;
 using backend.Helpers.Wrappers;
 using backend.Models;
 using AutoMapper;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Options;
 
 namespace backend
 {
@@ -68,6 +73,24 @@ namespace backend
                     return new UrlHelper(actionContext);
                 });
                 services.AddHttpContextAccessor();
+
+                services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                })
+                .AddJwtBearer(options =>
+                {
+                    var settings = builder.Configuration.GetSection("AppSettings:Secret").Value;
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(settings)),
+                        ValidateIssuer = false,
+                        ValidateAudience = false,
+                        ClockSkew = TimeSpan.Zero
+                    };
+                });
             }
             
 
@@ -76,9 +99,9 @@ namespace backend
             { //configuration of HTTP request pipeline
 
                 app.UseCors(x => x 
-                .AllowAnyOrigin()
                 .AllowAnyHeader()
-                .AllowAnyMethod());
+                .AllowAnyMethod()
+                .AllowAnyOrigin());
 
                 //custome application error handling
                 app.UseMiddleware<ErrorHandlerMiddleware>();
@@ -87,6 +110,7 @@ namespace backend
                 app.UseMiddleware<JwtMiddleware>();
 
                 app.UseAuthorization();
+                app.UseAuthentication();
 
                 app.MapControllers();
             }

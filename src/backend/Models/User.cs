@@ -38,6 +38,23 @@ namespace backend.Models
         public string? Password { get; set; }
     }
 
+    public class PasswordUpdateRequest
+    {
+        [Required]
+        [EmailAddress]
+        public string? Email { get; set;}
+
+        [Required]
+        public string? Password { get; set; }
+    }
+
+    public class EmailUpdateRequest
+    {
+        [Required]
+        [EmailAddress]
+        public string? Email { get; set; }
+    }
+
     public class AuthenticateResponse
     {
         public string? Token { get; set; }

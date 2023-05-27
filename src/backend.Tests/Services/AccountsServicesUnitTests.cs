@@ -20,6 +20,7 @@ namespace backend.Tests.Services
         private readonly Mock<IJwtUtils> _jwtUtils;
         private readonly Mock<IBCryptWrapper> _bCryptWrapper;
         private readonly Mock<IMongoDatabaseWrapper> _mongoDatabase;
+
         public AccountsServicesUnitTests()
         {
             //configure mapper for unit testing
@@ -34,41 +35,141 @@ namespace backend.Tests.Services
         }
 
         [Theory]
-        [MemberData(nameof(UserMockData.GetSampleRegistrationRequestModel), MemberType = typeof(UserMockData))]
-        public async Task AccountsServices_Register_ReturnAuthenticateResponse(RegistrationRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
+        [InlineData(true)] //no user has the same username in database
+        [InlineData(false)] //user with the same username exists
+        public async Task AccountsServices_Register_ReturnAuthenticateResponseOrException(bool isUsernameValid)
         {
-            //Arrange
-            User nullUser = null;
+            var request = AccountsMockData.GetSampleRegistrationRequest();
+            var sampleAuthenticateResponse = AccountsMockData.GetSampleAuthenticateResponse();
+            var sampleUser = AccountsMockData.GetSampleUser();
 
+            if (isUsernameValid)
+            {
+                //Arrange
+                _mongoDatabase.Setup(mock => mock.GetCollection<User>(It.IsAny<string>(), null)).Returns(_userContext.Object);
+                _userContext.Setup(mock => mock.Find(It.IsAny<Expression<Func<User, bool>>>())).ReturnsAsync(AccountsMockData.GetSampleNullUser());
+                _userContext.Setup(mock => mock.CountDocumentsAsync(It.IsAny<Expression<Func<User, bool>>>())).ReturnsAsync(sampleUser.UserId-1);
+                _bCryptWrapper.Setup(mock => mock.HashPassword(It.IsAny<string>())).Returns(sampleUser.Password);
+                _userContext.Setup(mock => mock.InsertOneAsync(It.IsAny<User>())).Returns(Task.CompletedTask);
+                _jwtUtils.Setup(mock => mock.GenerateToken(It.IsAny<User>())).Returns(sampleAuthenticateResponse.Token);
+
+                var service = new AccountsServices(_mongoDatabase.Object, _mapper, _jwtUtils.Object, _bCryptWrapper.Object);
+
+                //Act
+                var action = async () => await service.Register(request);
+                var response = await action.Invoke();
+
+                //Assert
+                Assert.NotNull(response);
+                Assert.Equal(response.Token, sampleAuthenticateResponse.Token);
+            }
+            else
+            {
+                //Arrange
+                _mongoDatabase.Setup(mock => mock.GetCollection<User>(It.IsAny<string>(), null)).Returns(_userContext.Object);
+                _userContext.Setup(mock => mock.Find(It.IsAny<Expression<Func<User, bool>>>())).ReturnsAsync(sampleUser);
+                var service = new AccountsServices(_mongoDatabase.Object, _mapper, _jwtUtils.Object, _bCryptWrapper.Object);
+
+                //Act & Assert
+                await Assert.ThrowsAnyAsync<AppException>(async () => await service.Register(request));
+            }
+        }
+
+        [Theory]
+        [InlineData(false,false)] //user doesn't exist
+        [InlineData(true, false)] //user exists, but password is wrong
+        [InlineData(true,true)] //user exitst and password is correct
+        public async Task AccountsServices_Login_ReturnAuthenticateResponseOrException(bool doesUserExist, bool isPasswordValid)
+        {
+            var request = AccountsMockData.GetSampleLoginRequest();
+            var sampleAuthenticateResponse = AccountsMockData.GetSampleAuthenticateResponse();
+            User sampleUser;
+
+            if(doesUserExist)
+            {
+                sampleUser = AccountsMockData.GetSampleUser();
+            }
+            else
+            {
+                sampleUser = AccountsMockData.GetSampleNullUser();
+            }
+
+            //Arrange
             _mongoDatabase.Setup(mock => mock.GetCollection<User>(It.IsAny<string>(), null)).Returns(_userContext.Object);
-            _userContext.Setup(mock => mock.Find(It.IsAny<Expression<Func<User, bool>>>(), null)).ReturnsAsync(nullUser);
-            _userContext.Setup(mock => mock.CountDocumentsAsync(It.IsAny<Expression<Func<User, bool>>>(), null, default)).ReturnsAsync(sampleUser.UserId-1);
-            _bCryptWrapper.Setup(mock => mock.HashPassword(It.IsAny<string>())).Returns(sampleUser.Password);
-            _userContext.Setup(mock => mock.InsertOneAsync(It.IsAny<User>(), null, default)).Returns(Task.CompletedTask);
+            _userContext.Setup(mock => mock.Find(It.IsAny<Expression<Func<User, bool>>>())).ReturnsAsync(sampleUser);
+            _bCryptWrapper.Setup(mock => mock.Verify(It.IsAny<string>(),It.IsAny<string>())).Returns(isPasswordValid);
             _jwtUtils.Setup(mock => mock.GenerateToken(It.IsAny<User>())).Returns(sampleAuthenticateResponse.Token);
 
             var service = new AccountsServices(_mongoDatabase.Object, _mapper, _jwtUtils.Object, _bCryptWrapper.Object);
 
-            //Act
-            var response = await service.Register(request);
+            //Act & Assert
+            var action = async () => await service.Login(request);
 
-            //Assert
-            Assert.NotNull(response);
-            Assert.Equal(response.Token,sampleAuthenticateResponse.Token);
+            if(doesUserExist && isPasswordValid)
+            {
+                //Act
+                var response = await action.Invoke();
+                //Assert
+                Assert.NotNull(response);
+                Assert.Equal(response.Token, sampleAuthenticateResponse.Token);
+            }
+            else
+            {
+                await Assert.ThrowsAsync<AppException>(action);
+            }
         }
 
         [Theory]
-        [MemberData(nameof(UserMockData.GetSampleRegistrationRequestModel), MemberType = typeof(UserMockData))]
-        public async Task AccountsServices_Register_ThrowsAppException(RegistrationRequest request, User sampleUser, AuthenticateResponse sampleAuthenticateResponse)
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task AccountsServices_GetUser_ReturnUserOrException(bool doesUserExist)
         {
+            User sampleUser;
+            if(doesUserExist)
+            {
+                sampleUser = AccountsMockData.GetSampleUser();
+            }
+            else
+            {
+                sampleUser = AccountsMockData.GetSampleNullUser();
+            }
+
             //Arrange
-            _mongoDatabase.Setup(mock => mock.GetCollection<User>(It.IsAny<string>(),null)).Returns(_userContext.Object);
-            _userContext.Setup(mock => mock.Find(It.IsAny<Expression<Func<User,bool>>>(),null)).ReturnsAsync(sampleUser);
+            _mongoDatabase.Setup(mock => mock.GetCollection<User>(It.IsAny<string>(), null)).Returns(_userContext.Object);
+            _userContext.Setup(mock => mock.Find(It.IsAny<Expression<Func<User, bool>>>())).ReturnsAsync(sampleUser);
             var service = new AccountsServices(_mongoDatabase.Object, _mapper, _jwtUtils.Object, _bCryptWrapper.Object);
 
             //Act
+            var action = async () => await service.GetUser(1);
+
             //Assert
-            await Assert.ThrowsAnyAsync<AppException>(async () => await service.Register(request));
+
+            if (doesUserExist)
+            {
+                var response = await action.Invoke();
+                Assert.NotNull(response);
+                Assert.Equal(response, sampleUser);
+            }
+            else
+            {
+                await Assert.ThrowsAsync<AppException>(action);
+            }
+            
+        }
+
+        public void AccountsServices_UpdatePassword_ReturnsVoidOrException()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void AccoutsServices_UpdateEmail_ReturnsVoidOrException()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void AccoutsServices_DeleteAccount_ReturnsVoidOrException()
+        {
+            throw new NotImplementedException();
         }
     }
 }

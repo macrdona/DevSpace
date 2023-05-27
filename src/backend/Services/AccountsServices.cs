@@ -16,6 +16,9 @@ namespace backend.Services
         public Task<AuthenticateResponse> Register(RegistrationRequest request);
         public Task<AuthenticateResponse> Login(LoginRequest request);
         public Task<User> GetUser(int id);
+        public Task UpdatePassword(PasswordUpdateRequest request);
+        public Task UpdateEmail(int userId, EmailUpdateRequest request);
+        public Task DeleteAccount(int userId);
     }
 
     public class AccountsServices : IAccountServices
@@ -38,22 +41,19 @@ namespace backend.Services
             try
             {
                 var user =  await _userContext.Find(x => x.Username == request.Username);
-                AuthenticateResponse response;
 
                 if (user != null)
                 {
                     throw new AppException("Username '" + request.Username + "' is already taken");
                 }
-                else
-                {
-                    user = _mapper.Map<User>(request);
-                    user.UserId = (int)await _userContext.CountDocumentsAsync(x => x.Username != request.Username) + 1;
-                    user.Password = _bCryptWrapper.HashPassword(user.Password);
-                    await _userContext.InsertOneAsync(user);
 
-                    response = _mapper.Map<AuthenticateResponse>(user);
-                    response.Token = _jwtUtils.GenerateToken(user);
-                }
+                user = _mapper.Map<User>(request);
+                user.UserId = (int)await _userContext.CountDocumentsAsync(x => x.Username != request.Username) + 1;
+                user.Password = _bCryptWrapper.HashPassword(user.Password);
+                await _userContext.InsertOneAsync(user);
+
+                var response = _mapper.Map<AuthenticateResponse>(user);
+                response.Token = _jwtUtils.GenerateToken(user);
 
                 return response;
             }
@@ -86,13 +86,65 @@ namespace backend.Services
             }
         }
 
+        public async Task UpdatePassword(PasswordUpdateRequest request)
+        {
+            try
+            {
+                var user = await _userContext.Find(x => x.Email == request.Email);
+
+                if (user == null)
+                {
+                    throw new AppException("User not found");
+                }
+
+                var password = _bCryptWrapper.HashPassword(request.Password);
+                var update = Builders<User>.Update.Set(u => u.Password, password);
+                await _userContext.UpdateOneAsync(x => x.Username == user.Username, update);
+
+            }
+            catch(Exception ex)
+            {
+                throw new AppException(ex.Message);
+            }
+            
+        }
+
+        public async Task UpdateEmail(int userId, EmailUpdateRequest request)
+        {
+            try
+            {
+                var update = Builders<User>.Update.Set(u => u.Email, request.Email);
+                await _userContext.UpdateOneAsync(x => x.UserId == userId, update);
+            }
+            catch (Exception ex)
+            {
+                throw new AppException(ex.Message);
+            }
+
+        }
+
+        public async Task DeleteAccount(int userId)
+        {
+            try
+            {
+                await _userContext.DeleteOneAsync(x => x.UserId == userId);
+            }
+            catch(Exception ex)
+            {
+                throw new AppException(ex.Message);
+            }
+        }
+
         public async Task<User> GetUser(int id)
         {
             try
             {
                 var user = await _userContext.Find(x => x.UserId == id);
 
-                if (user == null) throw new AppException("User not found");
+                if (user == null)
+                {
+                    throw new AppException("User not found");
+                }
 
                 return user;
             }

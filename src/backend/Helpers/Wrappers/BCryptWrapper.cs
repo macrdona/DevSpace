@@ -11,7 +11,7 @@ namespace backend.Helpers.Wrappers
     public interface IBCryptWrapper
     {
         string HashPassword(string inputKey);
-        bool Verify(string text, string hash, bool enhancedEntropy = false, HashType hashType = HashType.SHA384);
+        bool Verify(string text, string hash);
     }
 
     public class BCryptWrapper : IBCryptWrapper
@@ -23,7 +23,7 @@ namespace backend.Helpers.Wrappers
             return hash;
         }
 
-        public bool Verify(string text, string hash, bool enhancedEntropy = false, HashType hashType = HashType.SHA384)
+        public bool Verify(string text, string hash)
         {
             var isValid = BCrypt.Net.BCrypt.Verify(text, hash);
             return isValid;
