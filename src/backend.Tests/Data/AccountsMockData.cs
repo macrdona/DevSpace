@@ -57,6 +57,25 @@ namespace backend.Tests.Data
             return new LoginRequest() { Username = "string1", Password = "string1" };
         }
 
+        public static PasswordUpdateRequest GetSamplePasswordUpdateRequest()
+        {
+            var user = GetSampleUser();
+            return new PasswordUpdateRequest()
+            {
+                Email = user.Email,
+                Password = user.Password
+            };
+        }
+
+        public static EmailUpdateRequest GetSampleEmailUpdateRequest()
+        {
+            var user = GetSampleUser();
+            return new EmailUpdateRequest()
+            {
+                Email = user.Email
+            };
+        }
+
         public static IEnumerable<object[]> GetSampleRegistrationRequestModel()
         {
             yield return new object[] {

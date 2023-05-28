@@ -98,7 +98,7 @@ namespace backend.Services
                 }
 
                 var password = _bCryptWrapper.HashPassword(request.Password);
-                var update = Builders<User>.Update.Set(u => u.Password, password);
+                var update = _userContext.UpdateSet(u => u.Password, password);
                 await _userContext.UpdateOneAsync(x => x.Username == user.Username, update);
 
             }
@@ -113,7 +113,7 @@ namespace backend.Services
         {
             try
             {
-                var update = Builders<User>.Update.Set(u => u.Email, request.Email);
+                var update = _userContext.UpdateSet(u => u.Email, request.Email);
                 await _userContext.UpdateOneAsync(x => x.UserId == userId, update);
             }
             catch (Exception ex)

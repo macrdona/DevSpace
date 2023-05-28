@@ -16,6 +16,7 @@ namespace backend.Helpers.Wrappers
         Task InsertOneAsync(TDocument document);
         Task UpdateOneAsync(Expression<Func<TDocument, bool>> filter, UpdateDefinition<TDocument> update);
         Task DeleteOneAsync(Expression<Func<TDocument, bool>> filter);
+        UpdateDefinition<TDocument> UpdateSet<TField>(Expression<Func<TDocument, TField>> field, TField value);
     }
 
     public class MongoCollectionWrapper<TDocument> : IMongoCollectionWrapper<TDocument>
@@ -52,6 +53,11 @@ namespace backend.Helpers.Wrappers
         public async Task DeleteOneAsync(Expression<Func<TDocument, bool>> filter)
         {
             await _mongoCollection.DeleteOneAsync(filter);
+        }
+
+        public UpdateDefinition<TDocument> UpdateSet<TField>(Expression<Func<TDocument, TField>> field, TField value)
+        {
+            return Builders<TDocument>.Update.Set(field, value);
         }
     }
 }

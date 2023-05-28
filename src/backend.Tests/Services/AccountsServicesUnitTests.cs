@@ -1,15 +1,13 @@
 ﻿using AutoMapper;
 using backend.Authorization;
 using backend.Models;
-using FakeItEasy;
 using backend.Tests.Data;
 using backend.Services;
-using FluentAssertions;
 using backend.Helpers.Wrappers;
 using backend.Helpers;
 using Moq;
 using System.Linq.Expressions;
-
+using MongoDB.Driver;
 
 namespace backend.Tests.Services
 {
@@ -48,7 +46,7 @@ namespace backend.Tests.Services
                 //Arrange
                 _mongoDatabase.Setup(mock => mock.GetCollection<User>(It.IsAny<string>(), null)).Returns(_userContext.Object);
                 _userContext.Setup(mock => mock.Find(It.IsAny<Expression<Func<User, bool>>>())).ReturnsAsync(AccountsMockData.GetSampleNullUser());
-                _userContext.Setup(mock => mock.CountDocumentsAsync(It.IsAny<Expression<Func<User, bool>>>())).ReturnsAsync(sampleUser.UserId-1);
+                _userContext.Setup(mock => mock.CountDocumentsAsync(It.IsAny<Expression<Func<User, bool>>>())).ReturnsAsync(sampleUser.UserId - 1);
                 _bCryptWrapper.Setup(mock => mock.HashPassword(It.IsAny<string>())).Returns(sampleUser.Password);
                 _userContext.Setup(mock => mock.InsertOneAsync(It.IsAny<User>())).Returns(Task.CompletedTask);
                 _jwtUtils.Setup(mock => mock.GenerateToken(It.IsAny<User>())).Returns(sampleAuthenticateResponse.Token);
@@ -78,7 +76,7 @@ namespace backend.Tests.Services
         [Theory]
         [InlineData(false,false)] //user doesn't exist
         [InlineData(true, false)] //user exists, but password is wrong
-        [InlineData(true,true)] //user exitst and password is correct
+        [InlineData(true,true)] //user exists and password is correct
         public async Task AccountsServices_Login_ReturnAuthenticateResponseOrException(bool doesUserExist, bool isPasswordValid)
         {
             var request = AccountsMockData.GetSampleLoginRequest();
@@ -120,8 +118,8 @@ namespace backend.Tests.Services
         }
 
         [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
+        [InlineData(true)] //user was found with the provided userId
+        [InlineData(false)] //user was not found with the provided userId
         public async Task AccountsServices_GetUser_ReturnUserOrException(bool doesUserExist)
         {
             User sampleUser;
@@ -157,19 +155,82 @@ namespace backend.Tests.Services
             
         }
 
-        public void AccountsServices_UpdatePassword_ReturnsVoidOrException()
+        [Theory]
+        [InlineData(true)] //user was found with the provided email
+        [InlineData(false)] //user was not found with the provided email
+        public async void AccountsServices_UpdatePassword_ReturnsVoidOrException(bool doesUserExist)
         {
-            throw new NotImplementedException();
+            var sampleUpdatePasswordRequest = AccountsMockData.GetSamplePasswordUpdateRequest();
+            User sampleUser;
+
+            if(doesUserExist)
+            {
+                sampleUser = AccountsMockData.GetSampleUser();
+            }
+            else
+            {
+                sampleUser = AccountsMockData.GetSampleNullUser();
+            }
+
+            //Arrange
+            _mongoDatabase.Setup(mock => mock.GetCollection<User>(It.IsAny<string>(), null)).Returns(_userContext.Object);
+            _userContext.Setup(mock => mock.Find(It.IsAny<Expression<Func<User, bool>>>())).ReturnsAsync(sampleUser);
+            _bCryptWrapper.Setup(mock => mock.HashPassword(It.IsAny<string>())).Returns(sampleUpdatePasswordRequest.Password);
+            _userContext.Setup(mock => mock.UpdateOneAsync(It.IsAny<Expression<Func<User,bool>>>(),It.IsAny<UpdateDefinition<User>>())).Returns(Task.CompletedTask);
+            var service = new AccountsServices(_mongoDatabase.Object, _mapper, _jwtUtils.Object, _bCryptWrapper.Object);
+
+            //Act
+            var action = async () => await service.UpdatePassword(sampleUpdatePasswordRequest);
+
+            //Assert
+            if(doesUserExist)
+            {
+                await action.Invoke();
+                _mongoDatabase.Verify(mock => mock.GetCollection<User>(It.IsAny<string>(), null),Times.Once);
+                _userContext.Verify(mock => mock.Find(It.IsAny<Expression<Func<User, bool>>>()), Times.Once);
+                _bCryptWrapper.Verify(mock => mock.HashPassword(It.IsAny<string>()), Times.Once);
+                _userContext.Verify(mock => mock.UpdateOneAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<UpdateDefinition<User>>()), Times.Once);
+            }
+            else
+            {
+                await Assert.ThrowsAsync<AppException>(action);
+            }
+
         }
 
-        public void AccoutsServices_UpdateEmail_ReturnsVoidOrException()
+        [Fact]
+        public async Task AccoutsServices_UpdateEmail_ReturnsVoidOrException()
         {
-            throw new NotImplementedException();
+            var sampleUpdateEmailRequest = AccountsMockData.GetSampleEmailUpdateRequest();
+            var sampleUser = AccountsMockData.GetSampleUser();
+
+            //Arrange
+            _mongoDatabase.Setup(mock => mock.GetCollection<User>(It.IsAny<string>(), null)).Returns(_userContext.Object);
+            _userContext.Setup(mock => mock.UpdateOneAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<UpdateDefinition<User>>())).Returns(Task.CompletedTask);
+            var service = new AccountsServices(_mongoDatabase.Object, _mapper, _jwtUtils.Object, _bCryptWrapper.Object);
+
+            //Act
+            await service.UpdateEmail(sampleUser.UserId, sampleUpdateEmailRequest);
+
+            //Assert
+            _mongoDatabase.Verify(mock => mock.GetCollection<User>(It.IsAny<string>(), null), Times.Once);
+            _userContext.Verify(mock => mock.UpdateOneAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<UpdateDefinition<User>>()), Times.Once);
         }
 
-        public void AccoutsServices_DeleteAccount_ReturnsVoidOrException()
+        [Fact]
+        public async Task AccoutsServices_DeleteAccount_ReturnsVoidOrException()
         {
-            throw new NotImplementedException();
+            //Arrange
+            _mongoDatabase.Setup(mock => mock.GetCollection<User>(It.IsAny<string>(), null)).Returns(_userContext.Object);
+            _userContext.Setup(mock => mock.DeleteOneAsync(It.IsAny<Expression<Func<User, bool>>>())).Returns(Task.CompletedTask);
+            var service = new AccountsServices(_mongoDatabase.Object, _mapper, _jwtUtils.Object, _bCryptWrapper.Object);
+
+            //Act
+            await service.DeleteAccount(0);
+
+            //Assert
+            _mongoDatabase.Verify(mock => mock.GetCollection<User>(It.IsAny<string>(), null), Times.Once);
+            _userContext.Verify(mock => mock.DeleteOneAsync(It.IsAny<Expression<Func<User, bool>>>()), Times.Once);
         }
     }
 }
