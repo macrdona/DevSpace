@@ -1,6 +1,7 @@
 ﻿using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace backend.Models
 {
@@ -8,7 +9,7 @@ namespace backend.Models
     {
         //sets primary key
         [BsonId]
-        public string? UserId { get; set; }
+        public int UserId { get; set; }
         public string? Username { get; set; }
         public string? FirstName { get; set; }
         public string? LastName { get; set; }
@@ -28,5 +29,34 @@ namespace backend.Models
         public string? Email { get; set; }
         [Required]
         public string? Password { get; set; }
+    }
+    public class LoginRequest
+    {
+        [Required]
+        public string? Username { get; set; }
+        [Required]
+        public string? Password { get; set; }
+    }
+
+    public class PasswordUpdateRequest
+    {
+        [Required]
+        [EmailAddress]
+        public string? Email { get; set;}
+
+        [Required]
+        public string? Password { get; set; }
+    }
+
+    public class EmailUpdateRequest
+    {
+        [Required]
+        [EmailAddress]
+        public string? Email { get; set; }
+    }
+
+    public class AuthenticateResponse
+    {
+        public string? Token { get; set; }
     }
 }

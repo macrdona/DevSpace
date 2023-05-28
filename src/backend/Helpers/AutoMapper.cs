@@ -1,5 +1,7 @@
 ﻿using AutoMapper;
+using backend.Helpers.Wrappers;
 using backend.Models;
+using MongoDB.Driver;
 
 namespace backend.Helpers
 {
@@ -8,6 +10,7 @@ namespace backend.Helpers
         public AutoMapper()
         {
             CreateMap<RegistrationRequest, User>();
+            CreateMap<User, AuthenticateResponse>();
         }
     }
 }

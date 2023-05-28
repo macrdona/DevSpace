@@ -7,6 +7,10 @@
 
 1. Create secrets.json file `dotnet user-secrets init`
 2. Open secrets.json file or run command `dotnet user-secrets set "key" "value"`
-3. Access secrets from your program `string connectionUri = builder.Configuration["key"];`
+3. Access secrets from your program
+   ```
+   var databaseSettings = builder.Configuration.GetSection("DatabaseSettings");
+   services.Configure<DatabaseSettings>(databaseSettings);
+   ```
 
 - More information here: https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets?view=aspnetcore-7.0&tabs=windows#read-the-secret-via-the-configuration-api
